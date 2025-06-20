@@ -161,28 +161,17 @@ const SpeedReader: React.FC = () => {
   // Fix progress calculation to show 100% when on last word
   const progress = words.length > 0 ? ((currentWordIndex + 1) / words.length) * 100 : 0;
 
-  // Render current word with focus point
+  // Render current word without highlighting
   const renderCurrentWord = () => {
     if (words.length === 0 || currentWordIndex >= words.length) return null;
     
     const currentWord = words[currentWordIndex];
-    const { word, focusIndex } = currentWord;
+    const { word } = currentWord;
     
     return (
       <div className="text-center transition-all duration-200 ease-in-out">
-        <div className="text-6xl md:text-8xl font-bold text-gray-800 font-mono tracking-wider">
-          {word.split('').map((char, index) => (
-            <span
-              key={index}
-              className={
-                index === focusIndex
-                  ? 'text-blue-600 bg-blue-100 px-1 rounded transition-all duration-150'
-                  : 'text-gray-800 transition-all duration-150'
-              }
-            >
-              {char}
-            </span>
-          ))}
+        <div className="text-6xl md:text-8xl font-bold text-black font-mono tracking-wider">
+          {word}
         </div>
         <div className="mt-4 text-sm text-gray-500 transition-opacity duration-200">
           Word {currentWordIndex + 1} of {words.length}
