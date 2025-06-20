@@ -53,30 +53,55 @@ const SpeedReader: React.FC = () => {
     setIsPaused(false);
   }, []);
 
-  // Schedule the next word with appropriate timing
-  const scheduleNextWord = useCallback(() => {
-    if (currentWordIndex >= words.length - 1) {
-      setIsPlaying(false);
-      setIsPaused(false);
+  // Clear any existing timeout
+  const clearCurrentTimeout = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  // Advance to next word
+  const advanceToNextWord = useCallback(() => {
+    setCurrentWordIndex(prevIndex => {
+      const nextIndex = prevIndex + 1;
+      if (nextIndex >= words.length) {
+        // Reached the end
+        setIsPlaying(false);
+        setIsPaused(false);
+        return words.length - 1;
+      }
+      return nextIndex;
+    });
+  }, [words.length]);
+
+  // Start the reading process
+  const startReading = useCallback(() => {
+    if (!isPlaying || words.length === 0 || currentWordIndex >= words.length - 1) {
       return;
     }
 
+    clearCurrentTimeout();
+
     const currentWord = words[currentWordIndex];
     const baseInterval = 60000 / wpm; // milliseconds per word
-    const interval = currentWord?.hasPunctuation ? baseInterval * 2 : baseInterval; // 2x pause for punctuation
-    
-    timeoutRef.current = setTimeout(() => {
-      setCurrentWordIndex(prev => prev + 1);
-    }, interval);
-  }, [currentWordIndex, words, wpm]);
+    const interval = currentWord?.hasPunctuation ? baseInterval * 2 : baseInterval;
 
-  // Start reading from current position
-  const startReading = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      advanceToNextWord();
+    }, interval);
+  }, [isPlaying, words, currentWordIndex, wpm, clearCurrentTimeout, advanceToNextWord]);
+
+  // Effect to handle reading progression
+  useEffect(() => {
+    if (isPlaying && words.length > 0 && currentWordIndex < words.length - 1) {
+      startReading();
     }
-    scheduleNextWord();
-  }, [scheduleNextWord]);
+
+    return () => {
+      clearCurrentTimeout();
+    };
+  }, [isPlaying, currentWordIndex, startReading, clearCurrentTimeout]);
 
   // Toggle play/pause
   const toggleReading = () => {
@@ -84,10 +109,7 @@ const SpeedReader: React.FC = () => {
     
     if (isPlaying) {
       // Pause
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+      clearCurrentTimeout();
       setIsPlaying(false);
       setIsPaused(true);
     } else {
@@ -103,10 +125,7 @@ const SpeedReader: React.FC = () => {
 
   // Reset reading
   const resetReading = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    clearCurrentTimeout();
     setIsPlaying(false);
     setIsPaused(false);
     setCurrentWordIndex(0);
@@ -129,44 +148,12 @@ const SpeedReader: React.FC = () => {
     }
   };
 
-  // Effect to handle reading when playing state changes
-  useEffect(() => {
-    if (isPlaying && words.length > 0 && currentWordIndex < words.length - 1) {
-      startReading();
-    }
-    
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [isPlaying, startReading]);
-
-  // Effect to schedule next word when currentWordIndex changes during playback
-  useEffect(() => {
-    if (isPlaying && words.length > 0 && currentWordIndex < words.length - 1) {
-      scheduleNextWord();
-    } else if (isPlaying && currentWordIndex >= words.length - 1) {
-      // Reached the end
-      setIsPlaying(false);
-      setIsPaused(false);
-    }
-    
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [currentWordIndex, isPlaying, scheduleNextWord]);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      clearCurrentTimeout();
     };
-  }, []);
+  }, [clearCurrentTimeout]);
 
   // Calculate reading stats
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -174,17 +161,28 @@ const SpeedReader: React.FC = () => {
   // Fix progress calculation to show 100% when on last word
   const progress = words.length > 0 ? ((currentWordIndex + 1) / words.length) * 100 : 0;
 
-  // Render current word
+  // Render current word with focus point
   const renderCurrentWord = () => {
     if (words.length === 0 || currentWordIndex >= words.length) return null;
     
     const currentWord = words[currentWordIndex];
-    const { word } = currentWord;
+    const { word, focusIndex } = currentWord;
     
     return (
       <div className="text-center transition-all duration-200 ease-in-out">
         <div className="text-6xl md:text-8xl font-bold text-gray-800 font-mono tracking-wider">
-          {word}
+          {word.split('').map((char, index) => (
+            <span
+              key={index}
+              className={
+                index === focusIndex
+                  ? 'text-blue-600 bg-blue-100 px-1 rounded transition-all duration-150'
+                  : 'text-gray-800 transition-all duration-150'
+              }
+            >
+              {char}
+            </span>
+          ))}
         </div>
         <div className="mt-4 text-sm text-gray-500 transition-opacity duration-200">
           Word {currentWordIndex + 1} of {words.length}
